@@ -10,6 +10,6 @@ namespace Microsoft.Oryx.BuildScriptGenerator
         /// <summary>
         /// Gets or sets the version of Python used in the repo.
         /// </summary>
-        public string ResolvedPythonVersion { get; set; }
+        //public string ResolvedPythonVersion { get; set; }
     }
 }

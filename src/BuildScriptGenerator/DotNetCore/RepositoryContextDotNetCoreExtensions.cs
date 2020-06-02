@@ -10,6 +10,6 @@ namespace Microsoft.Oryx.BuildScriptGenerator
         /// <summary>
         /// Gets or sets the version of .NET Core used in the repo.
         /// </summary>
-        public string ResolvedDotNetCoreRuntimeVersion { get; set; }
+        //public string ResolvedDotNetCoreRuntimeVersion { get; set; }
     }
 }

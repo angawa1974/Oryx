@@ -9,6 +9,7 @@ using System.Diagnostics;
 using System.Linq;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Microsoft.Oryx.BuildScriptGenerator.Exceptions;
 using Microsoft.Oryx.BuildScriptGenerator.SourceRepo;
 using Microsoft.Oryx.Common.Extensions;
 using Newtonsoft.Json.Linq;
@@ -113,16 +114,40 @@ namespace Microsoft.Oryx.BuildScriptGenerator.Node
         /// <inheritdoc/>
         public PlatformDetectorResult Detect(RepositoryContext context)
         {
-            return _detector.Detect(context);
+            PlatformDetectorResult detectionResult;
+            if (TryGetExplicitVersion(out var explicitVersion))
+            {
+                detectionResult = new PlatformDetectorResult
+                {
+                    Platform = NodeConstants.PlatformName,
+                    PlatformVersion = explicitVersion,
+                };
+            }
+            else
+            {
+                detectionResult = _detector.Detect(context);
+            }
+
+            if (detectionResult == null)
+            {
+                return null;
+            }
+
+            var version = GetVersionUsingHierarchicalRules(detectionResult.PlatformVersion);
+            version = GetMaxSatisfyingVersionAndVerify(version);
+            detectionResult.PlatformVersion = version;
+            return detectionResult;
         }
 
         /// <inheritdoc/>
-        public BuildScriptSnippet GenerateBashBuildScriptSnippet(BuildScriptGeneratorContext ctx)
+        public BuildScriptSnippet GenerateBashBuildScriptSnippet(
+            BuildScriptGeneratorContext ctx,
+            PlatformDetectorResult detectorResult)
         {
             var manifestFileProperties = new Dictionary<string, string>();
 
             // Write the version to the manifest file
-            manifestFileProperties[ManifestFilePropertyKeys.NodeVersion] = ctx.ResolvedNodeVersion;
+            manifestFileProperties[ManifestFilePropertyKeys.NodeVersion] = detectorResult.PlatformVersion;
 
             var packageJson = GetPackageJsonObject(ctx.SourceRepo, _logger);
             string runBuildCommand = null;
@@ -199,7 +224,7 @@ namespace Microsoft.Oryx.BuildScriptGenerator.Node
                 var depSpecs = ((JObject)packageJson.dependencies).ToObject<IDictionary<string, string>>();
                 _logger.LogDependencies(
                     _commonOptions.PlatformName,
-                    ctx.ResolvedNodeVersion,
+                    detectorResult.PlatformVersion,
                     depSpecs.Select(d => d.Key + d.Value));
             }
 
@@ -208,7 +233,7 @@ namespace Microsoft.Oryx.BuildScriptGenerator.Node
                 var depSpecs = ((JObject)packageJson.devDependencies).ToObject<IDictionary<string, string>>();
                 _logger.LogDependencies(
                     _commonOptions.PlatformName,
-                    ctx.ResolvedNodeVersion,
+                    detectorResult.PlatformVersion,
                     depSpecs.Select(d => d.Key + d.Value), true);
             }
 
@@ -266,7 +291,7 @@ namespace Microsoft.Oryx.BuildScriptGenerator.Node
             return new BuildScriptSnippet
             {
                 BashBuildScriptSnippet = script,
-                BuildProperties = manifestFileProperties
+                BuildProperties = manifestFileProperties,
             };
         }
 
@@ -290,24 +315,14 @@ namespace Microsoft.Oryx.BuildScriptGenerator.Node
 
         /// <inheritdoc/>
         public void SetRequiredTools(
-            ISourceRepo sourceRepo,
-            string targetPlatformVersion,
+            PlatformDetectorResult detectorResult,
             IDictionary<string, string> toolsToVersion)
         {
             Debug.Assert(toolsToVersion != null, $"{nameof(toolsToVersion)} must not be null");
-            Debug.Assert(
-                sourceRepo != null,
-                $"{nameof(sourceRepo)} must not be null since Node needs access to the repository");
-            if (!string.IsNullOrWhiteSpace(targetPlatformVersion))
+            if (!string.IsNullOrWhiteSpace(detectorResult.PlatformVersion))
             {
-                toolsToVersion[ToolNameConstants.NodeName] = targetPlatformVersion;
+                toolsToVersion[ToolNameConstants.NodeName] = detectorResult.PlatformVersion;
             }
-        }
-
-        /// <inheritdoc/>
-        public void SetVersion(BuildScriptGeneratorContext context, string version)
-        {
-            context.ResolvedNodeVersion = version;
         }
 
         /// <inheritdoc/>
@@ -488,33 +503,30 @@ namespace Microsoft.Oryx.BuildScriptGenerator.Node
             }
         }
 
-        public string GetMaxSatisfyingVersionAndVerify(string runtimeVersion)
-        {
-            return _detector.GetMaxSatisfyingVersionAndVerify(runtimeVersion);
-        }
-
-        public string GetInstallerScriptSnippet(BuildScriptGeneratorContext context)
+        public string GetInstallerScriptSnippet(
+            BuildScriptGeneratorContext context,
+            PlatformDetectorResult detectorResult)
         {
             string installationScriptSnippet = null;
             if (_commonOptions.EnableDynamicInstall)
             {
                 _logger.LogDebug("Dynamic install is enabled.");
 
-                if (_platformInstaller.IsVersionAlreadyInstalled(context.ResolvedNodeVersion))
+                if (_platformInstaller.IsVersionAlreadyInstalled(detectorResult.PlatformVersion))
                 {
                     _logger.LogDebug(
                         "Node version {version} is already installed. So skipping installing it again.",
-                        context.ResolvedNodeVersion);
+                        detectorResult.PlatformVersion);
                 }
                 else
                 {
                     _logger.LogDebug(
                         "Node version {version} is not installed. " +
                         "So generating an installation script snippet for it.",
-                        context.ResolvedNodeVersion);
+                        detectorResult.PlatformVersion);
 
                     installationScriptSnippet = _platformInstaller.GetInstallerScriptSnippet(
-                        context.ResolvedNodeVersion);
+                        detectorResult.PlatformVersion);
                 }
             }
             else
@@ -523,6 +535,63 @@ namespace Microsoft.Oryx.BuildScriptGenerator.Node
             }
 
             return installationScriptSnippet;
+        }
+
+        private string GetMaxSatisfyingVersionAndVerify(string version)
+        {
+            var versionInfo = _nodeVersionProvider.GetVersionInfo();
+            var maxSatisfyingVersion = SemanticVersionResolver.GetMaxSatisfyingVersion(
+                version,
+                versionInfo.SupportedVersions);
+
+            if (string.IsNullOrEmpty(maxSatisfyingVersion))
+            {
+                var exception = new UnsupportedVersionException(
+                    NodeConstants.PlatformName,
+                    version,
+                    versionInfo.SupportedVersions);
+                _logger.LogError(
+                    exception,
+                    $"Exception caught, the version '{version}' is not supported for the Node platform.");
+                throw exception;
+            }
+
+            return maxSatisfyingVersion;
+        }
+
+        private string GetVersionUsingHierarchicalRules(string detectedVersion)
+        {
+            if (!string.IsNullOrEmpty(_nodeScriptGeneratorOptions.NodeVersion))
+            {
+                return _nodeScriptGeneratorOptions.NodeVersion;
+            }
+
+            if (detectedVersion != null)
+            {
+                return detectedVersion;
+            }
+
+            var versionInfo = _nodeVersionProvider.GetVersionInfo();
+            return versionInfo.DefaultVersion;
+        }
+
+        private bool TryGetExplicitVersion(out string explicitVersion)
+        {
+            explicitVersion = null;
+
+            var platformName = _commonOptions.PlatformName;
+            if (platformName.EqualsIgnoreCase(NodeConstants.PlatformName))
+            {
+                if (string.IsNullOrWhiteSpace(_nodeScriptGeneratorOptions.NodeVersion))
+                {
+                    return false;
+                }
+
+                explicitVersion = _nodeScriptGeneratorOptions.NodeVersion;
+                return true;
+            }
+
+            return false;
         }
     }
 }

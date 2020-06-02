@@ -17,6 +17,7 @@ namespace Microsoft.Oryx.Tests.Common
         private readonly IPlatformDetector _detector;
         private bool _enabled;
         private bool _platformIsEnabledForMultiPlatformBuild;
+        private readonly string _installationScriptContent;
 
         public TestProgrammingPlatform(
             string platformName,
@@ -25,7 +26,8 @@ namespace Microsoft.Oryx.Tests.Common
             string scriptContent = null,
             IPlatformDetector detector = null,
             bool enabled = true,
-            bool platformIsEnabledForMultiPlatformBuild = true)
+            bool platformIsEnabledForMultiPlatformBuild = true,
+            string installationScriptContent = null)
         {
             Name = platformName;
             SupportedVersions = platformVersions;
@@ -34,6 +36,7 @@ namespace Microsoft.Oryx.Tests.Common
             _detector = detector;
             _enabled = enabled;
             _platformIsEnabledForMultiPlatformBuild = platformIsEnabledForMultiPlatformBuild;
+            _installationScriptContent = installationScriptContent;
         }
 
         public string Name { get; }
@@ -45,7 +48,9 @@ namespace Microsoft.Oryx.Tests.Common
             return _detector?.Detect(context);
         }
 
-        public BuildScriptSnippet GenerateBashBuildScriptSnippet(BuildScriptGeneratorContext _)
+        public BuildScriptSnippet GenerateBashBuildScriptSnippet(
+            BuildScriptGeneratorContext context,
+            PlatformDetectorResult detectorResult)
         {
             if (_canGenerateScript == true)
             {
@@ -81,15 +86,10 @@ namespace Microsoft.Oryx.Tests.Common
         }
 
         public void SetRequiredTools(
-            ISourceRepo sourceRepo,
-            string targetPlatformVersion,
+            PlatformDetectorResult detectorResult,
             IDictionary<string, string> toolsToVersion)
         {
             toolsToVersion[Name] = SupportedVersions.First();
-        }
-
-        public void SetVersion(BuildScriptGeneratorContext context, string version)
-        {
         }
 
         public bool IsEnabledForMultiPlatformBuild(RepositoryContext scriptGeneratorContext)
@@ -102,9 +102,11 @@ namespace Microsoft.Oryx.Tests.Common
             return version;
         }
 
-        public string GetInstallerScriptSnippet(BuildScriptGeneratorContext context)
+        public string GetInstallerScriptSnippet(
+            BuildScriptGeneratorContext context,
+            PlatformDetectorResult detectorResult)
         {
-            return null;
+            return _installationScriptContent;
         }
     }
 }

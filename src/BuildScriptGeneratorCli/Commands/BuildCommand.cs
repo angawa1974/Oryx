@@ -422,6 +422,8 @@ namespace Microsoft.Oryx.BuildScriptGeneratorCli
 
             void SetPropertyValueInConfigurationSource(string key)
             {
+                // Set the platform version only if it is present otherwise we would be overwriting any
+                // value that is set by earlier configuration sources.
                 if (buildProperties.TryGetValue(key, out var value))
                 {
                     commandLineConfigSource.Set(key, value);
@@ -430,9 +432,21 @@ namespace Microsoft.Oryx.BuildScriptGeneratorCli
 
             void SetPlatformVersion(string platformName, string platformVersion)
             {
-                platformName = platformName == "nodejs" ? "node" : platformName;
-                var platformVersionKey = $"{platformName}_version".ToUpper();
-                commandLineConfigSource.Set(platformVersionKey, platformVersion);
+                if (string.IsNullOrEmpty(platformName))
+                {
+                    return;
+                }
+
+                commandLineConfigSource.Set(SettingsKeys.PlatformName, platformName);
+
+                // Set the platform version only if it is present otherwise we would be overwriting any
+                // value that is set by earlier configuration sources.
+                if (!string.IsNullOrEmpty(platformVersion))
+                {
+                    platformName = platformName == "nodejs" ? "node" : platformName;
+                    var platformVersionKey = $"{platformName}_version".ToUpper();
+                    commandLineConfigSource.Set(platformVersionKey, platformVersion);
+                }
             }
         }
 

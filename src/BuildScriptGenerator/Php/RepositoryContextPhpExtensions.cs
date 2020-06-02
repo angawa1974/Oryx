@@ -10,6 +10,6 @@ namespace Microsoft.Oryx.BuildScriptGenerator
         /// <summary>
         /// Gets or sets the version of PHP used in the repo.
         /// </summary>
-        public string ResolvedPhpVersion { get; set; }
+        //public string ResolvedPhpVersion { get; set; }
     }
 }

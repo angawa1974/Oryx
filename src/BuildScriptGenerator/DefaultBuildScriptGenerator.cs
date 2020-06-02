@@ -8,7 +8,6 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using JetBrains.Annotations;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.Oryx.BuildScriptGenerator.Exceptions;
@@ -24,9 +23,7 @@ namespace Microsoft.Oryx.BuildScriptGenerator
     internal class DefaultBuildScriptGenerator : IBuildScriptGenerator
     {
         private readonly IEnumerable<IProgrammingPlatform> _programmingPlatforms;
-        private readonly IConfiguration _configuration;
         private readonly BuildScriptGeneratorOptions _cliOptions;
-        private readonly IEnvironment _environment;
         private readonly ICompatiblePlatformDetector _platformDetector;
         private readonly IEnumerable<IChecker> _checkers;
         private readonly ILogger<DefaultBuildScriptGenerator> _logger;
@@ -34,18 +31,14 @@ namespace Microsoft.Oryx.BuildScriptGenerator
 
         public DefaultBuildScriptGenerator(
             IEnumerable<IProgrammingPlatform> programmingPlatforms,
-            IConfiguration configuration,
             IOptions<BuildScriptGeneratorOptions> cliOptions,
             ICompatiblePlatformDetector platformDetector,
             IEnumerable<IChecker> checkers,
             ILogger<DefaultBuildScriptGenerator> logger,
-            IEnvironment environment,
             IStandardOutputWriter writer)
         {
             _programmingPlatforms = programmingPlatforms;
-            _configuration = configuration;
             _cliOptions = cliOptions.Value;
-            _environment = environment;
             _platformDetector = platformDetector;
             _logger = logger;
             _checkers = checkers;
@@ -198,7 +191,7 @@ namespace Microsoft.Oryx.BuildScriptGenerator
         {
             var snippets = new List<BuildScriptSnippet>();
 
-            IDictionary<IProgrammingPlatform, string> platformsToUse;
+            IDictionary<IProgrammingPlatform, PlatformDetectorResult> platformsToUse;
             if (runDetection)
             {
                 platformsToUse = _platformDetector.GetCompatiblePlatforms(context);
@@ -208,9 +201,9 @@ namespace Microsoft.Oryx.BuildScriptGenerator
                 platformsToUse = _platformDetector.GetCompatiblePlatforms(context, detectionResults);
             }
 
-            foreach (KeyValuePair<IProgrammingPlatform, string> platformAndVersion in platformsToUse)
+            foreach (var platformAndDetectorResult in platformsToUse)
             {
-                var (platform, targetVersionSpec) = platformAndVersion;
+                var (platform, detectorResult) = platformAndDetectorResult;
 
                 if (directoriesToExcludeFromCopyToIntermediateDir != null)
                 {
@@ -230,21 +223,18 @@ namespace Microsoft.Oryx.BuildScriptGenerator
                     }
                 }
 
-                string targetVersion = GetMatchingTargetVersion(platform, targetVersionSpec);
-                platform.SetVersion(context, targetVersion);
-
                 string cleanOrNot = platform.IsCleanRepo(context.SourceRepo) ? "clean" : "not clean";
                 _logger.LogDebug($"Repo is {cleanOrNot} for {platform.Name}");
 
-                var snippet = platform.GenerateBashBuildScriptSnippet(context);
+                var snippet = platform.GenerateBashBuildScriptSnippet(context, detectorResult);
                 if (snippet != null)
                 {
                     _logger.LogDebug(
                         "Platform {platformName} with version {platformVersion} was used.",
                         platform.Name,
-                        targetVersion);
+                        detectorResult);
                     snippets.Add(snippet);
-                    platform.SetRequiredTools(context.SourceRepo, targetVersion, toolsToVersion);
+                    platform.SetRequiredTools(detectorResult, toolsToVersion);
                 }
                 else
                 {
@@ -330,16 +320,6 @@ namespace Microsoft.Oryx.BuildScriptGenerator
             return script;
         }
 
-        /// <summary>
-        /// Gets a matching version for the platform given a version in SemVer format.
-        /// If the given version is not supported, an exception is thrown.
-        /// </summary>
-        /// <returns>The maximum version that satisfies the requested version spec.</returns>
-        private string GetMatchingTargetVersion(IProgrammingPlatform platform, string targetVersionSpec)
-        {
-            return platform.GetMaxSatisfyingVersionAndVerify(targetVersionSpec);
-        }
-
         private IEnumerable<PlatformDetectorResult> DetectPlatforms(
             BuildScriptGeneratorContext context,
             Dictionary<string, string> toolsToVersion)
@@ -348,24 +328,16 @@ namespace Microsoft.Oryx.BuildScriptGenerator
 
             foreach (var platform in _programmingPlatforms)
             {
+                // Check if a platform is enabled or not
+                if (!platform.IsEnabled(context))
+                {
+                    _writer.WriteLine($"Platform '{platform.Name}' has been disabled, so skipping detection for it.");
+                    continue;
+                }
+
                 var detectionResult = platform.Detect(context);
                 if (detectionResult != null)
                 {
-                    string resolvedVersion;
-                    var version = GetPlatformVersion(platform.Name);
-                    if (string.IsNullOrEmpty(version))
-                    {
-                        resolvedVersion = detectionResult.PlatformVersion;
-                    }
-                    else
-                    {
-                        resolvedVersion = platform.GetMaxSatisfyingVersionAndVerify(version);
-                    }
-
-                    // Set the version here so that benv script can set the tool in the path
-                    platform.SetRequiredTools(context.SourceRepo, resolvedVersion, toolsToVersion);
-
-                    detectionResult.PlatformVersion = resolvedVersion;
                     detectionResults.Add(detectionResult);
                 }
             }
@@ -384,8 +356,7 @@ namespace Microsoft.Oryx.BuildScriptGenerator
                 var platform = _programmingPlatforms
                     .Where(p => p.Name.EqualsIgnoreCase(detectionResult.Platform))
                     .First();
-                platform.SetVersion(context, detectionResult.PlatformVersion);
-                var snippet = platform.GetInstallerScriptSnippet(context);
+                var snippet = platform.GetInstallerScriptSnippet(context, detectionResult);
                 if (!string.IsNullOrEmpty(snippet))
                 {
                     _writer.WriteLine(
@@ -396,21 +367,6 @@ namespace Microsoft.Oryx.BuildScriptGenerator
             }
 
             return installationScriptSnippets;
-        }
-
-        /// <summary>
-        /// Gets the platform version in a hierarchical fasion
-        /// 1. --platform nodejs --platform-version 4.0
-        /// 2. NODE_VERSION=4.0 from environment variables
-        /// 3. NODE_VERSION=4.0 from build.env file
-        /// </summary>
-        /// <param name="platformName">Platform for which we want to get the version in a hierarchical way.</param>
-        /// <returns></returns>
-        private string GetPlatformVersion(string platformName)
-        {
-            platformName = platformName == "nodejs" ? "node" : platformName;
-
-            return _configuration[$"{platformName}_version"];
         }
     }
 }

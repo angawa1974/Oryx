@@ -5,24 +5,24 @@
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
-using Microsoft.Oryx.BuildScriptGenerator.Php;
+using Microsoft.Oryx.BuildScriptGenerator.Hugo;
 
 namespace Microsoft.Oryx.BuildScriptGeneratorCli.Options
 {
     /// <summary>
     /// Gets hierarchical configuration from IConfiguration api and
-    /// binds the properties on <see cref="PhpScriptGeneratorOptions"/>.
+    /// binds the properties on <see cref="HugoScriptGeneratorOptions"/>.
     /// </summary>
-    public class PhpScriptGeneratorOptionsSetup : OptionsSetupBase, IConfigureOptions<PhpScriptGeneratorOptions>
+    public class HugoScriptGeneratorOptionsSetup : OptionsSetupBase, IConfigureOptions<HugoScriptGeneratorOptions>
     {
-        public PhpScriptGeneratorOptionsSetup(IConfiguration configuration)
+        public HugoScriptGeneratorOptionsSetup(IConfiguration configuration)
             : base(configuration)
         {
         }
 
-        public void Configure(PhpScriptGeneratorOptions options)
+        public void Configure(HugoScriptGeneratorOptions options)
         {
-            options.PhpVersion = GetStringValue(SettingsKeys.PhpVersion);
+            options.HugoVersion = GetStringValue(SettingsKeys.HugoVersion);
         }
     }
 }

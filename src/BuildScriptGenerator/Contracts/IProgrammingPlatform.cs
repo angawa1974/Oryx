@@ -32,13 +32,6 @@ namespace Microsoft.Oryx.BuildScriptGenerator
         PlatformDetectorResult Detect(RepositoryContext context);
 
         /// <summary>
-        /// Sets the version of the platform in the <see cref="BuildScriptGeneratorContext"/>.
-        /// </summary>
-        /// <param name="context">The context to set the version into.</param>
-        /// <param name="version">The platform version to be set.</param>
-        void SetVersion(BuildScriptGeneratorContext context, string version);
-
-        /// <summary>
         /// Adds the required tools and their versions to a map.
         /// </summary>
         /// <param name="sourceRepo">Source repo for the application.</param>
@@ -50,8 +43,7 @@ namespace Microsoft.Oryx.BuildScriptGenerator
         /// scenarios where the environment already has the right tools configured and in the path,
         /// in which case no tool setup is needed.</remarks>
         void SetRequiredTools(
-            ISourceRepo sourceRepo,
-            string targetPlatformVersion,
+            PlatformDetectorResult detectorResult,
             [NotNull] IDictionary<string, string> toolsToVersion);
 
         /// <summary>
@@ -60,7 +52,9 @@ namespace Microsoft.Oryx.BuildScriptGenerator
         /// <param name="scriptGeneratorContext">The <see cref="BuildScriptGeneratorContext"/>.</param>
         /// <returns><see cref="BuildScriptSnippet "/> with the build snippet if successful,
         /// <c>null</c> otherwise.</returns>
-        BuildScriptSnippet GenerateBashBuildScriptSnippet(BuildScriptGeneratorContext scriptGeneratorContext);
+        BuildScriptSnippet GenerateBashBuildScriptSnippet(
+            BuildScriptGeneratorContext scriptGeneratorContext,
+            PlatformDetectorResult detectorResult);
 
         /// <summary>
         /// Generate a bash script that can install the required runtime bits for the application's platforms.
@@ -106,15 +100,6 @@ namespace Microsoft.Oryx.BuildScriptGenerator
         /// <returns>true, if the platform wants to participate, false otherwise.</returns>
         bool IsEnabledForMultiPlatformBuild(RepositoryContext ctx);
 
-        /// <summary>
-        /// Gets the maximum satisfying version for the given version and
-        /// throws an exception if a version is not found.
-        /// The version supplied here could just be major, major.minor or major.minor.patch
-        /// </summary>
-        /// <param name="version">Version for which the maximum satisfying version needs to be found.</param>
-        /// <returns>Full version (i.e major.minor.patch)</returns>
-        string GetMaxSatisfyingVersionAndVerify(string version);
-
-        string GetInstallerScriptSnippet(BuildScriptGeneratorContext context);
+        string GetInstallerScriptSnippet(BuildScriptGeneratorContext context, PlatformDetectorResult detectorResult);
     }
 }

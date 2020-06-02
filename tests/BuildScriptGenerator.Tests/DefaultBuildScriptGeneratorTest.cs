@@ -361,21 +361,26 @@ namespace Microsoft.Oryx.BuildScriptGenerator.Tests
         public void GeneratesScript_UsingTheFirstPlatform_WhichCanGenerateScript()
         {
             // Arrange
-            var detector = new TestPlatformDetectorUsingPlatformName(
-                detectedPlatformName: null,
-                detectedPlatformVersion: null);
+            var detector1 = new TestPlatformDetectorUsingPlatformName(
+                detectedPlatformName: "lang1",
+                detectedPlatformVersion: "1.0.0");
             var platform1 = new TestProgrammingPlatform(
                 "lang1",
                 new[] { "1.0.0" },
                 canGenerateScript: false,
                 scriptContent: null,
-                detector);
+                installationScriptContent: "lang1-installationscript",
+                detector: detector1);
+            var detector2 = new TestPlatformDetectorUsingPlatformName(
+                detectedPlatformName: "lang2",
+                detectedPlatformVersion: "1.0.0");
             var platform2 = new TestProgrammingPlatform(
                 "lang2",
                 new[] { "1.0.0" },
                 canGenerateScript: true,
+                installationScriptContent: "lang2-installationscript",
                 scriptContent: "script-content",
-                detector);
+                detector: detector2);
 
             var commonOptions = new BuildScriptGeneratorOptions
             {
@@ -390,7 +395,10 @@ namespace Microsoft.Oryx.BuildScriptGenerator.Tests
 
             // Assert
             Assert.Contains("script-content", generatedScript);
-            Assert.True(detector.DetectInvoked);
+            Assert.True(detector1.DetectInvoked);
+            Assert.True(detector2.DetectInvoked);
+            Assert.Contains("lang1-installationscript", generatedScript);
+            Assert.Contains("lang2-installationscript", generatedScript);
         }
 
         [Fact]
@@ -643,8 +651,7 @@ namespace Microsoft.Oryx.BuildScriptGenerator.Tests
 
         private DefaultCompatiblePlatformDetector CreateDefaultCompatibleDetector(
             IProgrammingPlatform[] platforms,
-            BuildScriptGeneratorOptions commonOptions,
-            IEnumerable<IChecker> checkers = null)
+            BuildScriptGeneratorOptions commonOptions)
         {
             commonOptions = commonOptions ?? new BuildScriptGeneratorOptions();
             commonOptions.SourceDir = "/app";
@@ -655,8 +662,7 @@ namespace Microsoft.Oryx.BuildScriptGenerator.Tests
             return new DefaultCompatiblePlatformDetector(
                     platforms,
                     NullLogger<DefaultCompatiblePlatformDetector>.Instance,
-                    Options.Create(commonOptions),
-                    configuration);
+                    Options.Create(commonOptions));
         }
 
         private DefaultBuildScriptGenerator CreateDefaultScriptGenerator(
@@ -672,16 +678,13 @@ namespace Microsoft.Oryx.BuildScriptGenerator.Tests
             configuration[$"{commonOptions.PlatformName}_version"] = commonOptions.PlatformVersion;
             return new DefaultBuildScriptGenerator(
                 platforms,
-                configuration,
                 Options.Create(commonOptions),
                 new DefaultCompatiblePlatformDetector(
                     platforms,
                     NullLogger<DefaultCompatiblePlatformDetector>.Instance,
-                    Options.Create(commonOptions),
-                    configuration),
+                    Options.Create(commonOptions)),
                 checkers,
                 NullLogger<DefaultBuildScriptGenerator>.Instance,
-                new TestEnvironment(),
                 new DefaultStandardOutputWriter());
         }
 

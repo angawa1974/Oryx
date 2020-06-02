@@ -10,6 +10,6 @@ namespace Microsoft.Oryx.BuildScriptGenerator
         /// <summary>
         /// Gets or sets the version of Node used in the repo.
         /// </summary>
-        public string ResolvedNodeVersion { get; set; }
+        //public string ResolvedNodeVersion { get; set; }
     }
 }
