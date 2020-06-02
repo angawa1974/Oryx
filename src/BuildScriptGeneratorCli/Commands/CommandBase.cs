@@ -5,14 +5,13 @@
 
 using System;
 using System.Collections.Generic;
+using System.Text;
 using McMaster.Extensions.CommandLineUtils;
-using Microsoft.ApplicationInsights;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Oryx.BuildScriptGenerator;
 using Microsoft.Oryx.BuildScriptGenerator.Exceptions;
-using Microsoft.Oryx.BuildScriptGeneratorCli.Options;
 using Microsoft.Oryx.Common;
 
 namespace Microsoft.Oryx.BuildScriptGeneratorCli
@@ -103,6 +102,25 @@ namespace Microsoft.Oryx.BuildScriptGeneratorCli
             {
                 DisposeServiceProvider();
             }
+        }
+
+        protected string GetBeginningCommandOutputLog()
+        {
+            var output = new StringBuilder();
+            output.AppendLine("Operation performed by Microsoft Oryx, https://github.com/Microsoft/Oryx");
+            output.AppendLine("You can report issues at https://github.com/Microsoft/Oryx/issues");
+            var buildInfo = new DefinitionListFormatter();
+            var oryxVersion = Program.GetVersion();
+            var oryxCommitId = Program.GetMetadataValue(Program.GitCommit);
+            var oryxReleaseTagName = Program.GetMetadataValue(Program.ReleaseTagName);
+            buildInfo.AddDefinition(
+                "Oryx Version",
+                $"{oryxVersion}, " +
+                $"Commit: {oryxCommitId}, " +
+                $"ReleaseTagName: {oryxReleaseTagName}");
+            output.AppendLine();
+            output.Append(buildInfo.ToString());
+            return output.ToString();
         }
 
         internal abstract int Execute(IServiceProvider serviceProvider, IConsole console);

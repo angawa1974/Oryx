@@ -138,18 +138,10 @@ namespace Microsoft.Oryx.BuildScriptGeneratorCli
 
             var options = serviceProvider.GetRequiredService<IOptions<BuildScriptGeneratorOptions>>().Value;
 
-            console.WriteLine("Build orchestrated by Microsoft Oryx, https://github.com/Microsoft/Oryx");
-            console.WriteLine("You can report issues at https://github.com/Microsoft/Oryx/issues");
-            console.WriteLine();
-
+            var beginningOutputLog = GetBeginningCommandOutputLog();
+            console.WriteLine(beginningOutputLog);
             var buildInfo = new DefinitionListFormatter();
-            buildInfo.AddDefinition(
-                "Oryx Version",
-                $"{oryxVersion}, " +
-                $"Commit: {oryxCommitId}, " +
-                $"ReleaseTagName: {oryxReleaseTagName}");
             buildInfo.AddDefinition("Build Operation ID", buildOperationId);
-
             if (!string.IsNullOrWhiteSpace(sourceRepoCommitId))
             {
                 buildInfo.AddDefinition("Repository Commit", sourceRepoCommitId);
@@ -263,6 +255,7 @@ namespace Microsoft.Oryx.BuildScriptGeneratorCli
             int exitCode;
             using (var timedEvent = logger.LogTimedEvent("RunBuildScript", buildEventProps))
             {
+                console.WriteLine();
                 exitCode = serviceProvider.GetRequiredService<IScriptExecutor>().ExecuteScript(
                     buildScriptPath,
                     new[]

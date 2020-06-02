@@ -176,8 +176,12 @@ namespace Microsoft.Oryx.BuildScriptGeneratorCli.Tests
             var stringToPrint = "Hello World";
             var script = $"#!/bin/bash\necho {stringToPrint}\n";
             var serviceProvider = CreateServiceProvider(
-                new TestProgrammingPlatform("test", new[] { "1.0.0" }, true, script,
-                    new TestPlatformDetectorUsingPlatformName(
+                new TestProgrammingPlatform(
+                    platformName: "test",
+                    platformVersions: new[] { "1.0.0" },
+                    canGenerateScript: true,
+                    scriptContent: script,
+                    detector: new TestPlatformDetectorUsingPlatformName(
                         detectedPlatformName: "test",
                         detectedPlatformVersion: "1.0.0")),
                 scriptOnly: false);

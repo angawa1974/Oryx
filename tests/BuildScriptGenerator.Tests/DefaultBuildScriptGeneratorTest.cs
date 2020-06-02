@@ -98,7 +98,7 @@ namespace Microsoft.Oryx.BuildScriptGenerator.Tests
                 new[] { "1.0.0" },
                 canGenerateScript: true,
                 scriptContent: "script-content",
-                detector);
+                detector: detector);
             var commonOptions = new BuildScriptGeneratorOptions
             {
                 PlatformName = "test",
@@ -213,7 +213,7 @@ namespace Microsoft.Oryx.BuildScriptGenerator.Tests
                 new[] { "1.0.0" },
                 canGenerateScript: true,
                 scriptContent: "script-content",
-                detector);
+                detector: detector);
             var commonOptions = new BuildScriptGeneratorOptions
             {
                 PlatformName = "unsupported",
@@ -243,7 +243,7 @@ namespace Microsoft.Oryx.BuildScriptGenerator.Tests
                 new[] { "1.0.0" },
                 canGenerateScript: false,
                 scriptContent: null,
-                detector);
+                detector: detector);
             var commonOptions = new BuildScriptGeneratorOptions();
             var generator = CreateDefaultScriptGenerator(platform, commonOptions);
             var context = CreateScriptGeneratorContext();
@@ -267,7 +267,7 @@ namespace Microsoft.Oryx.BuildScriptGenerator.Tests
                 new[] { "1.0.0" },
                 canGenerateScript: true,
                 scriptContent: "script-content",
-                detector);
+                detector: detector);
             var commonOptions = new BuildScriptGeneratorOptions
             {
                 EnableMultiPlatformBuild = false,
@@ -292,7 +292,7 @@ namespace Microsoft.Oryx.BuildScriptGenerator.Tests
                 new[] { "1.0.0" },
                 canGenerateScript: true,
                 scriptContent: "script-content",
-                detector);
+                detector: detector);
 
             var detector2 = new TestPlatformDetectorUsingPlatformName(
                 detectedPlatformName: "test2",
@@ -302,7 +302,7 @@ namespace Microsoft.Oryx.BuildScriptGenerator.Tests
                 new[] { "1.0.0" },
                 canGenerateScript: true,
                 scriptContent: "script-content",
-                detector2);
+                detector: detector2);
 
             var commonOptions = new BuildScriptGeneratorOptions
             {
@@ -330,7 +330,7 @@ namespace Microsoft.Oryx.BuildScriptGenerator.Tests
                 new[] { "1.0.0" },
                 canGenerateScript: true,
                 scriptContent: "script-content",
-                detector);
+                detector: detector);
 
             var detector2 = new TestPlatformDetectorUsingPlatformName(
                 detectedPlatformName: "test2",
@@ -340,7 +340,7 @@ namespace Microsoft.Oryx.BuildScriptGenerator.Tests
                 new[] { "1.0.0" },
                 canGenerateScript: true,
                 scriptContent: "script-content",
-                detector2);
+                detector: detector2);
 
             var commonOptions = new BuildScriptGeneratorOptions
             {
@@ -526,7 +526,7 @@ namespace Microsoft.Oryx.BuildScriptGenerator.Tests
             var platformVersion = "1.0.0";
             var detector = new TestPlatformDetectorSimpleMatch(true, TestPlatformName, platformVersion);
             var platform = new TestProgrammingPlatform(
-                TestPlatformName, new[] { platformVersion }, true, "script-content", detector);
+                TestPlatformName, new[] { platformVersion }, true, "script-content", detector: detector);
 
             var commonOptions = new BuildScriptGeneratorOptions
             {
@@ -563,7 +563,7 @@ namespace Microsoft.Oryx.BuildScriptGenerator.Tests
             var detector = new TestPlatformDetectorSimpleMatch(true, TestPlatformName, platformVersion);
             var scriptContent = "script-content";
             var platform = new TestProgrammingPlatform(
-                TestPlatformName, new[] { platformVersion }, true, scriptContent, detector);
+                TestPlatformName, new[] { platformVersion }, true, scriptContent, detector: detector);
 
             var commonOptions = new BuildScriptGeneratorOptions
             {
@@ -674,10 +674,16 @@ namespace Microsoft.Oryx.BuildScriptGenerator.Tests
             commonOptions.SourceDir = "/app";
             commonOptions.DestinationDir = "/output";
 
-            var configuration = new TestConfiguration();
-            configuration[$"{commonOptions.PlatformName}_version"] = commonOptions.PlatformVersion;
-            return new DefaultBuildScriptGenerator(
+            var defaultPlatformDetector = new DefaultPlatformDetector(
                 platforms,
+                new DefaultStandardOutputWriter());
+            var envScriptProvider = new BuildScriptGenerator.PlatformsInstallationScriptProvider(
+                platforms,
+                defaultPlatformDetector,
+                new DefaultStandardOutputWriter());
+            return new DefaultBuildScriptGenerator(
+                defaultPlatformDetector,
+                envScriptProvider,
                 Options.Create(commonOptions),
                 new DefaultCompatiblePlatformDetector(
                     platforms,

@@ -14,29 +14,29 @@ namespace Microsoft.Oryx.Tests.Common
     {
         private readonly bool? _canGenerateScript;
         private readonly string _scriptContent;
+        private readonly string _installationScriptContent;
         private readonly IPlatformDetector _detector;
         private bool _enabled;
         private bool _platformIsEnabledForMultiPlatformBuild;
-        private readonly string _installationScriptContent;
 
         public TestProgrammingPlatform(
             string platformName,
             string[] platformVersions,
             bool? canGenerateScript = null,
             string scriptContent = null,
+            string installationScriptContent = null,
             IPlatformDetector detector = null,
             bool enabled = true,
-            bool platformIsEnabledForMultiPlatformBuild = true,
-            string installationScriptContent = null)
+            bool platformIsEnabledForMultiPlatformBuild = true)
         {
             Name = platformName;
             SupportedVersions = platformVersions;
             _canGenerateScript = canGenerateScript;
             _scriptContent = scriptContent;
+            _installationScriptContent = installationScriptContent;
             _detector = detector;
             _enabled = enabled;
             _platformIsEnabledForMultiPlatformBuild = platformIsEnabledForMultiPlatformBuild;
-            _installationScriptContent = installationScriptContent;
         }
 
         public string Name { get; }

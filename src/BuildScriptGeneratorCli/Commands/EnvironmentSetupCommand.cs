@@ -6,6 +6,7 @@
 using System;
 using System.IO;
 using System.Linq;
+using System.Text;
 using McMaster.Extensions.CommandLineUtils;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -17,94 +18,77 @@ using Microsoft.Oryx.Common;
 
 namespace Microsoft.Oryx.BuildScriptGeneratorCli
 {
-    [Command(Name, Description = "Execute an arbitrary command in the default shell, in an environment " +
-        "with the best-matching platform tool versions.")]
-    internal class ExecCommand : CommandBase
+    [Command(Name, Description = "Sets up environment by detecting and installing platforms.")]
+    internal class EnvironmentSetupCommand : CommandBase
     {
-        public const string Name = "exec";
+        public const string Name = "setup";
 
-        [Option("-s|--src <dir>", CommandOptionType.SingleValue, Description = "Source directory.")]
+        [Argument(0, Description = "The source directory.")]
         [DirectoryExists]
         public string SourceDir { get; set; }
 
-        [Argument(1, Description = "The command to execute in an app-specific environment.")]
-        public string Command { get; set; }
-
         internal override int Execute(IServiceProvider serviceProvider, IConsole console)
         {
-            var logger = serviceProvider.GetRequiredService<ILogger<ExecCommand>>();
-            var env = serviceProvider.GetRequiredService<IEnvironment>();
-            var opts = serviceProvider.GetRequiredService<IOptions<BuildScriptGeneratorOptions>>().Value;
+            var logger = serviceProvider.GetRequiredService<ILogger<EnvironmentSetupCommand>>();
+            var options = serviceProvider.GetRequiredService<IOptions<BuildScriptGeneratorOptions>>().Value;
 
             var beginningOutputLog = GetBeginningCommandOutputLog();
             console.WriteLine(beginningOutputLog);
 
-            if (string.IsNullOrWhiteSpace(Command))
-            {
-                logger.LogDebug("Command is empty; exiting");
-                return ProcessConstants.ExitSuccess;
-            }
-
-            var shellPath = env.GetEnvironmentVariable("BASH") ?? FilePaths.Bash;
-            var context = BuildScriptGenerator.CreateContext(serviceProvider, operationId: null);
-            var detector = serviceProvider.GetRequiredService<DefaultPlatformDetector>();
-            var detectedPlatforms = detector.DetectPlatforms(context);
-            if (!detectedPlatforms.Any())
-            {
-                return ProcessConstants.ExitFailure;
-            }
-
             int exitCode;
-            using (var timedEvent = logger.LogTimedEvent("ExecCommand"))
+            using (var timedEvent = logger.LogTimedEvent("EnvSetupCommand"))
             {
-                // Build envelope script
-                var scriptBuilder = new ShellScriptBuilder("\n")
-                    .AddShebang(shellPath)
-                    .AddCommand("set -e");
-
-                var envSetupProvider = serviceProvider.GetRequiredService<PlatformsInstallationScriptProvider>();
-                var installationScript = envSetupProvider.GetBashScriptSnippet(
-                    context,
-                    detectedPlatforms);
-                if (!string.IsNullOrEmpty(installationScript))
+                var context = BuildScriptGenerator.CreateContext(serviceProvider, operationId: null);
+                var detector = serviceProvider.GetRequiredService<DefaultPlatformDetector>();
+                var detectedPlatforms = detector.DetectPlatforms(context);
+                if (!detectedPlatforms.Any())
                 {
-                    scriptBuilder.AddCommand(installationScript);
+                    return ProcessConstants.ExitFailure;
                 }
 
-                scriptBuilder.Source(
-                    $"{FilePaths.Benv} " +
-                    $"{string.Join(" ", detectedPlatforms.Select(p => $"{p.Platform}={p.PlatformVersion}"))}");
+                var environmentScriptProvider = serviceProvider.GetRequiredService<PlatformsInstallationScriptProvider>();
+                var snippet = environmentScriptProvider.GetBashScriptSnippet(context, detectedPlatforms);
 
-                scriptBuilder
-                    .AddCommand("echo Executing supplied command...")
-                    .AddCommand(Command);
+                var scriptBuilder = new StringBuilder()
+                    .AppendLine($"#!{FilePaths.Bash}")
+                    .AppendLine("set -e")
+                    .AppendLine();
+
+                if (!string.IsNullOrEmpty(snippet))
+                {
+                    scriptBuilder
+                        .AppendLine("echo")
+                        .AppendLine("echo Setting up environment...")
+                        .AppendLine("echo")
+                        .AppendLine(snippet)
+                        .AppendLine("echo")
+                        .AppendLine("echo Done setting up environment.")
+                        .AppendLine("echo");
+                }
 
                 // Create temporary file to store script
                 // Get the path where the generated script should be written into.
                 var tempDirectoryProvider = serviceProvider.GetRequiredService<ITempDirectoryProvider>();
-                var tempScriptPath = Path.Combine(tempDirectoryProvider.GetTempDirectory(), "execCommand.sh");
+                var tempScriptPath = Path.Combine(tempDirectoryProvider.GetTempDirectory(), "setupEnvironment.sh");
                 var script = scriptBuilder.ToString();
                 File.WriteAllText(tempScriptPath, script);
-                console.WriteLine("Finished generating script.");
-
                 timedEvent.AddProperty(nameof(tempScriptPath), tempScriptPath);
 
                 if (DebugMode)
                 {
                     console.WriteLine($"Temporary script @ {tempScriptPath}:");
                     console.WriteLine("---");
-                    console.WriteLine(script);
+                    console.WriteLine(scriptBuilder);
                     console.WriteLine("---");
                 }
 
-                console.WriteLine();
-                console.WriteLine("Executing generated script...");
-                console.WriteLine();
+                var environment = serviceProvider.GetRequiredService<IEnvironment>();
+                var shellPath = environment.GetEnvironmentVariable("BASH") ?? FilePaths.Bash;
 
                 exitCode = ProcessHelper.RunProcess(
                     shellPath,
                     new[] { tempScriptPath },
-                    opts.SourceDir,
+                    options.SourceDir,
                     (sender, args) =>
                     {
                         if (args.Data != null)
@@ -142,6 +126,7 @@ namespace Microsoft.Oryx.BuildScriptGeneratorCli
             var config = new ConfigurationBuilder()
                 .AddIniFile(Path.Combine(SourceDir, Constants.BuildEnvironmentFileName), optional: true)
                 .AddEnvironmentVariables()
+                .Add(GetCommandLineConfigSource())
                 .Build();
 
             // Override the GetServiceProvider() call in CommandBase to pass the IConsole instance to
@@ -165,6 +150,12 @@ namespace Microsoft.Oryx.BuildScriptGeneratorCli
                 });
 
             return serviceProviderBuilder.Build();
+        }
+
+        private CustomConfigurationSource GetCommandLineConfigSource()
+        {
+            var commandLineConfigSource = new CustomConfigurationSource();
+            return commandLineConfigSource;
         }
     }
 }
