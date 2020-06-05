@@ -38,9 +38,6 @@ function retagImageWithStagingRepository()
         echo -------------------------------------------------------------------------------
     fi
     done <"$artifactsFile"
-    
-    echo "showing new tags written in '$outFile' ... "
-    cat $outFile
 }
 
 # first argument is the image name e.g dotnetcore
