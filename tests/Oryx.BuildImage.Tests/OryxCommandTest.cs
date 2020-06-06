@@ -237,7 +237,7 @@ namespace Microsoft.Oryx.BuildImage.Tests
                 result.GetDebugInfo());
         }
 
-        [Fact]
+        [Fact(Skip = "Temorarily skipping the test")]
         public void CliImage_Dockerfile_SucceedsWithBasicNodeApp()
         {
             // Arrange

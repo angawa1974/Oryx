@@ -67,7 +67,7 @@ namespace Microsoft.Oryx.BuildScriptGenerator
             // build environment is setup with detected platforms' sdks.
             _writer.WriteLine("Detecting platforms...");
             var detectionResults = DetectPlatforms(context, toolsToVersion);
-            _writer.WriteLine("Detected following platforms:");
+            _writer.WriteLine("Detected following platforms and versions:");
             foreach (var result in detectionResults)
             {
                 _writer.WriteLine($"{result.Platform}: {result.PlatformVersion}");
@@ -338,6 +338,9 @@ namespace Microsoft.Oryx.BuildScriptGenerator
                 var detectionResult = platform.Detect(context);
                 if (detectionResult != null)
                 {
+                    // Set the required tools so that benv script can set the tool in the path
+                    platform.SetRequiredTools(detectionResult, toolsToVersion);
+
                     detectionResults.Add(detectionResult);
                 }
             }
@@ -361,7 +364,7 @@ namespace Microsoft.Oryx.BuildScriptGenerator
                 {
                     _writer.WriteLine(
                         $"Version '{detectionResult.PlatformVersion}' of platform '{detectionResult.Platform}' " +
-                        $"is not installed. Generating scripting to install it...");
+                        $"is not installed. Generating script to install it...");
                     installationScriptSnippets.Add(snippet);
                 }
             }

@@ -846,6 +846,10 @@ namespace Microsoft.Oryx.BuildScriptGenerator.Tests.Node
             public void WriteLine(string message)
             {
             }
+
+            public void WriteLine()
+            {
+            }
         }
     }
 }
