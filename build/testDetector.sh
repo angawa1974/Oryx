@@ -15,6 +15,7 @@ echo
 echo "Building and running tests..."
 testProjectName="Detector.Tests"
 cd "$TESTS_SRC_DIR/$testProjectName"
+mkdir -p "$ARTIFACTS_DIR"
 dotnet test \
     --test-adapter-path:. \
     --logger:"xunit;LogFilePath=$ARTIFACTS_DIR\testResults\\$testProjectName.xml" \
